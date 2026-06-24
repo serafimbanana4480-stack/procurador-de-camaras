@@ -244,6 +244,13 @@ def search_censys(
         yield from _search_censys_direct(api_id, api_secret, config)
         return
 
+    # Se temos PAT (api_secret = None ou ""), o SDK antigo não serve.
+    # Usar sempre API direta.
+    if api_secret is None or api_secret == "":
+        logger.info("   PAT detetado, a usar API direta v3...")
+        yield from _search_censys_direct(api_id, api_secret, config)
+        return
+
     query = query_builder(config.censys_country, config.censys_query)
     logger.info(f"🔍 Censys query: {query}")
     logger.info(f"   max_pages={config.censys_max_pages} per_page={config.censys_per_page}")
@@ -449,22 +456,217 @@ def _search_censys_direct(
 ) -> Generator[Camera, None, None]:
     """Fallback: pesquisa Censys via API HTTP direta.
 
-    Suporta:
-    - Personal Access Token: Basic auth (token, '')
-    - API ID + Secret: Basic auth (id, secret)
+    Estrategia (por ordem):
+    1. Platform API v3 (search.censys.io/api/v3) - Bearer token
+    2. Legacy Search API v2 (search.censys.io/api/v2) - API ID + Secret
+
+    O Personal Access Token (PAT) so funciona na Platform API v3.
     """
     import requests
 
-    base_url = "https://search.censys.io/api/v2"
     query = query_builder(config.censys_country, config.censys_query)
-    logger.info(f"🔍 Censys direct API: {query}")
+    logger.info(f"Direct Censys API: {query}")
+
+    is_pat = api_secret is None or api_secret == ""
+    is_legacy = api_secret is not None and api_secret != ""
+
+    if is_pat:
+        # Platform API v3 - Bearer token
+        logger.info("   Platform API v3 (Bearer token)")
+        count = 0
+        for cam in _search_censys_v3(api_id, query, config):
+            yield cam
+            count += 1
+        if count > 0:
+            return  # v3 funcionou
+
+    # Legacy Search API v2 - Basic auth
+    logger.info("   Legacy Search API v2")
+    for cam in _search_censys_v2(api_id, api_secret, query, config):
+        yield cam
+
+
+def _search_censys_v3(
+    token: str,
+    query: str,
+    config: ScanConfig,
+) -> Generator[Camera, None, None]:
+    """Platform API v3: search.censys.io/api/v3/global/search/query.
+
+    Usa POST com Bearer token.
+    """
+    import requests
+
+    url = "https://search.censys.io/api/v3/global/search/query"
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {token}",
+    }
+    page = 1
+    cursor: str | None = None
+    count = 0
+
+    while page <= config.censys_max_pages:
+        per_page = min(max(1, config.censys_per_page), 100)
+        body: dict = {
+            "q": query,
+            "per_page": per_page,
+        }
+        if cursor:
+            body["cursor"] = cursor
+
+        try:
+            r = requests.post(url, json=body, headers=headers, timeout=20)
+        except requests.exceptions.Timeout:
+            logger.warning(f"Censys v3 timeout (pagina {page})")
+            return
+        except Exception as e:
+            logger.error(f"Censys v3 error: {e}")
+            return
+
+        if r.status_code == 200:
+            data = r.json()
+            result = data.get("result", {}) or {}
+            hits = result.get("hits", []) or []
+
+            for hit in hits:
+                camera = _parse_censys_v3_host(hit)
+                if camera:
+                    count += 1
+                    yield camera
+
+            next_cursor = result.get("next_cursor") or result.get("cursor")
+            if not next_cursor or not hits:
+                break
+            cursor = next_cursor
+            page += 1
+
+        elif r.status_code in (401, 403):
+            if page == 1:
+                logger.warning(f"Censys v3: {r.status_code} - token invalido")
+            return
+        else:
+            logger.debug(f"Censys v3: {r.status_code}")
+            return
+
+    if count > 0:
+        logger.info(f"   Censys v3: {count} hosts ({page} pagina(s))")
+
+
+def _parse_censys_v3_host(hit: dict) -> Camera | None:
+    """Converte um hit da Platform API v3 em Camera."""
+    ip = hit.get("ip")
+    if not ip:
+        return None
+
+    loc = hit.get("location", {}) or {}
+    geo = GeoLocation(
+        country=loc.get("country"),
+        country_code=loc.get("country_code"),
+        city=loc.get("city"),
+        region=loc.get("region"),
+        lat=loc.get("latitude") or loc.get("lat"),
+        lon=loc.get("longitude") or loc.get("lng") or loc.get("lon"),
+        postal=loc.get("postal_code"),
+        timezone=loc.get("timezone"),
+    )
+
+    net = hit.get("network", {}) or {}
+    network = NetworkInfo(
+        isp=net.get("isp"),
+        org=net.get("organization") or net.get("org"),
+        asn=str(net.get("asn")) if net.get("asn") else None,
+        as_name=net.get("as_name"),
+    )
+
+    services = hit.get("services", []) or []
+    ports_open = []
+    rtsp_service = None
+    http_service = None
+    onvif_service = None
+
+    for svc in services:
+        port = svc.get("port", 0)
+        if port:
+            ports_open.append(port)
+        name = (svc.get("service_name") or svc.get("transport_protocol") or "").lower()
+        ext_name = (svc.get("extended_service_name") or "").lower()
+
+        if port == 554 or "rtsp" in name or "rtsp" in ext_name:
+            if not rtsp_service:
+                rtsp_service = svc
+        elif port in (80, 443, 8080, 8000, 8443) or "http" in name:
+            if not http_service:
+                http_service = svc
+        if "onvif" in ext_name or port in (2020, 3702):
+            if not onvif_service:
+                onvif_service = svc
+
+    if not rtsp_service and not http_service:
+        return None
+
+    primary_port = 554
+    if rtsp_service and rtsp_service.get("port"):
+        primary_port = int(rtsp_service["port"])
+    elif http_service and http_service.get("port"):
+        primary_port = int(http_service["port"])
+
+    raw_banner = ""
+    if rtsp_service:
+        raw_banner = (
+            rtsp_service.get("banner", "")
+            or (rtsp_service.get("rtsp") or {}).get("response", "")
+        )
+    if not raw_banner and http_service:
+        raw_banner = http_service.get("http", {}).get("response", {}).get("body", "")
+
+    http_title = None
+    if http_service:
+        http_resp = http_service.get("http", {}).get("response", {}) or {}
+        http_title = http_resp.get("html_title") or http_resp.get("title")
+
+    vendor = identify_vendor(raw_banner, http_title)
+
+    ts = hit.get("last_updated_at") or hit.get("last_seen")
+    try:
+        first_seen = float(ts) if ts else 0.0
+    except (TypeError, ValueError):
+        first_seen = 0.0
+
+    return Camera(
+        ip=ip,
+        port=primary_port,
+        source=SourceType.CENSYS,
+        first_seen=first_seen,
+        last_seen=first_seen,
+        vendor=vendor,
+        geo=geo,
+        network=network,
+        ports_open=sorted(set(ports_open)),
+        http_status=(http_service or {}).get("http", {}).get("response", {}).get("status_code"),
+        http_title=http_title,
+        status=CameraStatus.PENDING,
+        raw_banner=raw_banner or None,
+        onvif_supported=onvif_service is not None,
+    )
+
+
+def _search_censys_v2(
+    api_id: str,
+    api_secret: str | None,
+    query: str,
+    config: ScanConfig,
+) -> Generator[Camera, None, None]:
+    """Legacy Search API v2: Basic auth (API ID + Secret)."""
+    import requests
 
     if api_secret is None:
-        # Personal Access Token: Basic auth com token + password vazio
         auth = (api_id, "")
     else:
         auth = (api_id, api_secret)
+
     headers = {"Accept": "application/json"}
+    url = "https://search.censys.io/api/v2/hosts/search"
     page = 1
     next_token = None
     count = 0
@@ -478,37 +680,35 @@ def _search_censys_direct(
             params["page_token"] = next_token
 
         try:
-            r = requests.get(
-                f"{base_url}/hosts/search",
-                auth=auth,
-                headers=headers,
-                params=params,
-                timeout=15,
-            )
-            if r.status_code == 200:
-                data = r.json()
-                hits = data.get("result", {}).get("hits", [])
-                for host in hits:
-                    camera = _parse_censys_host(host)
-                    if camera:
-                        count += 1
-                        yield camera
-                next_token = data.get("result", {}).get("next_page_token")
-                if not next_token:
-                    break
-                page += 1
-            elif r.status_code == 401:
-                logger.error("Censys API: 401 Unauthorized — verifica API key")
-                return
-            else:
-                logger.error(f"Censys API error: {r.status_code} — {r.text[:100]}")
-                return
+            r = requests.get(url, auth=auth, headers=headers, params=params, timeout=15)
         except requests.exceptions.Timeout:
-            logger.warning(f"Censys API timeout (página {page})")
+            logger.warning(f"Censys v2 timeout (pagina {page})")
             return
         except Exception as e:
-            logger.error(f"Censys API error: {e}")
+            logger.error(f"Censys v2 error: {e}")
             return
 
-    logger.info(f"✅ Censys direct: {count} câmaras")
+        if r.status_code == 200:
+            data = r.json()
+            hits = data.get("result", {}).get("hits", [])
+            if not hits:
+                break
+            for host in hits:
+                camera = _parse_censys_host(host)
+                if camera:
+                    count += 1
+                    yield camera
+            next_token = data.get("result", {}).get("next_page_token")
+            if not next_token:
+                break
+            page += 1
+        elif r.status_code == 401:
+            logger.debug("Censys v2: 401 (esperado com PAT)")
+            return
+        else:
+            logger.debug(f"Censys v2: {r.status_code}")
+            return
+
+    if count > 0:
+        logger.info(f"   Censys v2: {count} hosts ({page} pagina(s))")
 
