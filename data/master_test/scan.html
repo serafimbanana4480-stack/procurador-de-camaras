@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Procurador de Câmara — Relatório master-test</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Segoe UI', monospace; }
+  .card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 1rem; }
+  .status-live { color: #22c55e; font-weight: bold; }
+  .status-auth { color: #eab308; font-weight: bold; }
+  .status-closed { color: #6b7280; }
+  .status-error { color: #ef4444; font-weight: bold; }
+  .status-web { color: #d946ef; font-weight: bold; }
+  table { border-collapse: collapse; width: 100%; }
+  th { background: #1f2937; color: #06b6d4; padding: 8px; text-align: left; }
+  td { padding: 6px 8px; border-bottom: 1px solid #333; }
+  tr:hover { background: #1f2937; }
+  a { color: #06b6d4; }
+  .screenshot { max-width: 320px; max-height: 240px; border: 1px solid #333; border-radius: 4px; }
+  code { background: #1f2937; padding: 2px 6px; border-radius: 4px; }
+  pre { background: #0a0a0a; padding: 8px; border-radius: 4px; overflow-x: auto; }
+  .bar { background: #06b6d4; height: 8px; border-radius: 4px; }
+  .bar-bg { background: #333; border-radius: 4px; overflow: hidden; height: 8px; }
+</style>
+</head>
+<body class="p-6">
+
+<header class="mb-6">
+  <h1 class="text-3xl font-bold text-cyan-400">🦾 Procurador de Câmara</h1>
+  <p class="text-gray-400">Relatório do scan <code>master-test</code> &middot; 2026-06-24 04:57:50 &middot; Duração: 30.0s</p>
+</header>
+
+<section class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  <div class="card"><div class="text-2xl font-bold text-cyan-400">5</div><div class="text-gray-400">Total IPs</div></div>
+  <div class="card"><div class="text-2xl font-bold text-green-500">2</div><div class="text-gray-400">🟢 LIVE</div></div>
+  <div class="card"><div class="text-2xl font-bold text-yellow-500">2</div><div class="text-gray-400">🟡 AUTH</div></div>
+  <div class="card"><div class="text-2xl font-bold text-fuchsia-500">1</div><div class="text-gray-400">🌐 WEB</div></div>
+  <div class="card"><div class="text-2xl font-bold text-red-500">0</div><div class="text-gray-400">🔴 FAIL</div></div>
+  <div class="card"><div class="text-2xl font-bold text-gray-500">0</div><div class="text-gray-400">⚫ CLOSED</div></div>
+  <div class="card"><div class="text-2xl font-bold text-red-500">0</div><div class="text-gray-400">⚠️ ERROS</div></div>
+  <div class="card"><div class="text-2xl font-bold text-magenta-400">0</div><div class="text-gray-400">📺 Streams</div></div>
+</section>
+
+<section class="grid md:grid-cols-2 gap-4 mb-6">
+  <div class="card">
+    <h2 class="text-xl font-bold mb-2 text-cyan-400">🏭 Top Fabricantes</h2>
+    
+<div class="mb-1">
+  <div class="flex justify-between text-sm">
+    <span>Hikvision</span>
+    <span class="text-cyan-400">2</span>
+  </div>
+  <div class="bar-bg"><div class="bar" style="width: 100%;"></div></div>
+</div>
+
+<div class="mb-1">
+  <div class="flex justify-between text-sm">
+    <span>Dahua</span>
+    <span class="text-cyan-400">1</span>
+  </div>
+  <div class="bar-bg"><div class="bar" style="width: 50%;"></div></div>
+</div>
+
+<div class="mb-1">
+  <div class="flex justify-between text-sm">
+    <span>Axis</span>
+    <span class="text-cyan-400">1</span>
+  </div>
+  <div class="bar-bg"><div class="bar" style="width: 50%;"></div></div>
+</div>
+
+<div class="mb-1">
+  <div class="flex justify-between text-sm">
+    <span>Vivotek</span>
+    <span class="text-cyan-400">1</span>
+  </div>
+  <div class="bar-bg"><div class="bar" style="width: 50%;"></div></div>
+</div>
+
+  </div>
+  <div class="card">
+    <h2 class="text-xl font-bold mb-2 text-cyan-400">🌍 Top Países</h2>
+    
+<div class="mb-1">
+  <div class="flex justify-between text-sm">
+    <span>Portugal</span>
+    <span class="text-cyan-400">1</span>
+  </div>
+  <div class="bar-bg"><div class="bar" style="width: 100%;"></div></div>
+</div>
+
+<div class="mb-1">
+  <div class="flex justify-between text-sm">
+    <span>Spain</span>
+    <span class="text-cyan-400">1</span>
+  </div>
+  <div class="bar-bg"><div class="bar" style="width: 100%;"></div></div>
+</div>
+
+<div class="mb-1">
+  <div class="flex justify-between text-sm">
+    <span>France</span>
+    <span class="text-cyan-400">1</span>
+  </div>
+  <div class="bar-bg"><div class="bar" style="width: 100%;"></div></div>
+</div>
+
+<div class="mb-1">
+  <div class="flex justify-between text-sm">
+    <span>Brazil</span>
+    <span class="text-cyan-400">1</span>
+  </div>
+  <div class="bar-bg"><div class="bar" style="width: 100%;"></div></div>
+</div>
+
+<div class="mb-1">
+  <div class="flex justify-between text-sm">
+    <span>USA</span>
+    <span class="text-cyan-400">1</span>
+  </div>
+  <div class="bar-bg"><div class="bar" style="width: 100%;"></div></div>
+</div>
+
+  </div>
+</section>
+
+<section class="card mb-6">
+  <h2 class="text-xl font-bold mb-4 text-cyan-400">📷 Câmaras (5 total, 2 LIVE)</h2>
+  <div class="overflow-x-auto">
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>IP:Porta</th>
+        <th>Vendor</th>
+        <th>País</th>
+        <th>Cidade</th>
+        <th>Resolução</th>
+        <th>Auth</th>
+        <th>Método</th>
+        <th>ONVIF</th>
+        <th>CVE</th>
+        <th>Screenshot</th>
+      </tr>
+    </thead>
+    <tbody>
+      
+<tr>
+  <td class="status-live">🟢</td>
+  <td><code>127.0.0.1:18570</code></td>
+  <td>Hikvision</td>
+  <td>Portugal</td>
+  <td>Lisboa</td>
+  <td>N/A</td>
+  <td><code>no-auth</code></td>
+  <td>rtsp_no_auth</td>
+  <td></td>
+  <td><code></code></td>
+  <td><span class="text-gray-600">—</span></td>
+</tr>
+
+<tr>
+  <td class="status-auth">🟡</td>
+  <td><code>127.0.0.1:18571</code></td>
+  <td>Dahua</td>
+  <td>Spain</td>
+  <td>Madrid</td>
+  <td>N/A</td>
+  <td><code>—</code></td>
+  <td>unknown</td>
+  <td></td>
+  <td><code></code></td>
+  <td><span class="text-gray-600">—</span></td>
+</tr>
+
+<tr>
+  <td class="status-live">🟢</td>
+  <td><code>127.0.0.1:18572</code></td>
+  <td>Axis</td>
+  <td>France</td>
+  <td>Paris</td>
+  <td>N/A</td>
+  <td><code>no-auth</code></td>
+  <td>rtsp_no_auth</td>
+  <td></td>
+  <td><code></code></td>
+  <td><span class="text-gray-600">—</span></td>
+</tr>
+
+<tr>
+  <td class="status-auth">🟡</td>
+  <td><code>127.0.0.1:18573</code></td>
+  <td>Vivotek</td>
+  <td>Brazil</td>
+  <td>São Paulo</td>
+  <td>N/A</td>
+  <td><code>—</code></td>
+  <td>unknown</td>
+  <td></td>
+  <td><code></code></td>
+  <td><span class="text-gray-600">—</span></td>
+</tr>
+
+<tr>
+  <td class="status-web">🌐</td>
+  <td><code>127.0.0.1:18574</code></td>
+  <td>Hikvision</td>
+  <td>USA</td>
+  <td>New York</td>
+  <td>N/A</td>
+  <td><code>—</code></td>
+  <td>http_snapshot</td>
+  <td></td>
+  <td><code></code></td>
+  <td><span class="text-gray-600">—</span></td>
+</tr>
+
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<footer class="text-center text-gray-600 text-sm mt-8">
+  <p>Gerado por Procurador de Câmara v1.0 · 2026-06-24 04:58:20</p>
+  <p>⚠️ Aviso legal: usar apenas em redes e dispositivos com autorização.</p>
+</footer>
+
+</body>
+</html>

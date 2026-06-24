@@ -308,5 +308,5 @@ class Daemon:
             f"📊 Ciclo completo: "
             f"🟢{result.accessible} 🟡{result.auth_required} "
             f"🌐{result.web_only} ⚫{result.closed} ⚠️{result.errors} "
-            f"| {len(result.cameras)} IPs em {result.finished_at - result.started_at:.1f}s"
+            f"| {len(result.cameras)} IPs em {(result.finished_at or result.started_at) - result.started_at:.1f}s"
         )

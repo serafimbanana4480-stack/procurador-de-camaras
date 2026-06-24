@@ -412,8 +412,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # Atualizar referências das funções helper com a config do CLI
     global args_no_onvif, args_no_cve
-    args_no_onvif = lambda c: not c.onvif_enabled  # noqa: E731
-    args_no_cve = lambda c: not c.cve_enabled  # noqa: E731
+    args_no_onvif = lambda c: not c.onvif_enabled  # type: ignore[assignment]  # noqa: E731
+    args_no_cve = lambda c: not c.cve_enabled  # type: ignore[assignment]  # noqa: E731
 
     cameras = _scan_batch(cameras, config, geoip, max_workers=args.max_workers)
 

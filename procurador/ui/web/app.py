@@ -160,7 +160,7 @@ def _register_routes(app: Flask) -> None:
         cam = next((c for c in sr.cameras if c.ip == ip), None)
         if cam is None:
             abort(404)
-        return render_template("camera_detail.html", cam=cam.to_dict())
+        return render_template("camera_detail.html", cam=cam.to_dict())  # type: ignore[union-attr]
 
     @app.route("/screenshot/<ip>")
     def screenshot(ip: str) -> Response:
@@ -174,7 +174,7 @@ def _register_routes(app: Flask) -> None:
 
         # Validar que o path está dentro de data/screenshots
         workspace_root = Path(__file__).resolve().parent.parent.parent.parent
-        sp = Path(cam.screenshot_path).resolve()
+        sp = Path(cam.screenshot_path).resolve()  # type: ignore[union-attr]
         screenshot_root = (workspace_root / "data" / "screenshots").resolve()
         try:
             sp.relative_to(screenshot_root)
@@ -223,7 +223,7 @@ def _register_routes(app: Flask) -> None:
             abort(404)
 
         try:
-            return send_file(str(path), as_attachment=True, download_name=path.name)
+            return send_file(str(path), as_attachment=True, download_name=path.name)  # type: ignore[union-attr]
         except Exception as e:
             logger.error(f"Erro export {fmt}: {e}")
             abort(500)

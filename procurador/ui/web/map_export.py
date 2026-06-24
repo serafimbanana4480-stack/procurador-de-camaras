@@ -37,8 +37,13 @@ def generate_map_html(result: ScanResult) -> str:
         return _wrap_html(m, "0 câmaras com geolocalização")
 
     # Centro do mapa
-    center_lat = sum(c.geo.lat for c in cams_with_geo) / len(cams_with_geo)
-    center_lon = sum(c.geo.lon for c in cams_with_geo) / len(cams_with_geo)
+    # Calcular centro (filtrar None)
+    lats = [c.geo.lat for c in cams_with_geo if c.geo.lat is not None]
+    lons = [c.geo.lon for c in cams_with_geo if c.geo.lon is not None]
+    if not lats or not lons:
+        return _wrap_html(folium.Map(location=[20, 0], zoom_start=2, tiles="CartoDB dark_matter"), "Sem coordenadas")
+    center_lat = sum(lats) / len(lats)
+    center_lon = sum(lons) / len(lons)
 
     m = folium.Map(
         location=[center_lat, center_lon],

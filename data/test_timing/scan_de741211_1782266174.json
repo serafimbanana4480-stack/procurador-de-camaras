@@ -1,0 +1,72 @@
+{
+  "scan_id": "de741211",
+  "started_at": "2026-06-24T02:56:14.674488",
+  "finished_at": "2026-06-24T03:06:10.562650",
+  "config": {
+    "censys_enabled": true,
+    "shodan_enabled": false,
+    "local_enabled": false,
+    "censys_query": "services.service_name: RTSP",
+    "censys_country": "",
+    "censys_max_pages": 5,
+    "censys_per_page": 100,
+    "shodan_query": "port:554",
+    "rtsp_probe_timeout": 0.2,
+    "rtsp_probe_concurrent": 200,
+    "rtsp_brute_paths": true,
+    "rtsp_brute_max_paths": 30,
+    "brute_enabled": false,
+    "brute_max_attempts": 100,
+    "brute_threads": 20,
+    "http_probe_enabled": true,
+    "http_timeout": 3.0,
+    "http_admin_brute": true,
+    "http_max_login_attempts": 20,
+    "onvif_enabled": false,
+    "onvif_timeout": 4.0,
+    "onvif_default_user": "admin",
+    "onvif_default_pass": "",
+    "cve_enabled": false,
+    "cve_timeout": 5.0,
+    "stream_capture": false,
+    "stream_threads": 4,
+    "stream_timeout": 5.0,
+    "screenshot_dir": "data/screenshots",
+    "local_subnet": "192.168.1.0/24",
+    "arp_timeout": 3,
+    "alt_ports": [
+      8554,
+      5554,
+      37777,
+      7447,
+      7070,
+      1935
+    ],
+    "geoip_enabled": false,
+    "ipinfo_token": "",
+    "max_concurrent": 100,
+    "stealth": false,
+    "save_json": true,
+    "output_dir": "data/test_timing"
+  },
+  "stats": {
+    "total_ips": 1,
+    "accessible": 0,
+    "auth_required": 0,
+    "auth_failed": 0,
+    "closed": 1,
+    "errors": 0,
+    "live_streams": 0,
+    "web_only": 0,
+    "vendors": {
+      "Unknown": 1
+    },
+    "countries": {
+      "Unknown": 1
+    },
+    "access_methods": {
+      "unknown": 1
+    }
+  },
+  "cameras": []
+}

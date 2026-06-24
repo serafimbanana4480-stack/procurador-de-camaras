@@ -1,0 +1,6 @@
+ip,port,status,vendor,model,country,country_code,city,lat,lon,rtsp_url,rtsp_path,auth_user,auth_pass,auth_method,access_method,onvif_supported,cve_exploited,resolution,codec,http_url,screenshot_path,source,first_seen,tags,error_message
+127.0.0.1,18570,live,Hikvision,,Portugal,PT,Lisboa,38.72,-9.14,rtsp://127.0.0.1:18570/Streaming/Channels/101,/Streaming/Channels/101,,,,rtsp_no_auth,no,,N/A,,,,censys,0.0,no-auth,
+127.0.0.1,18571,auth,Dahua,,Spain,ES,Madrid,40.42,-3.7,,/cam/realmonitor?channel=1&subtype=0,,,,unknown,no,,N/A,,,,censys,0.0,,
+127.0.0.1,18572,live,Axis,,France,FR,Paris,48.85,2.35,rtsp://127.0.0.1:18572/axis-media/media.amp,/axis-media/media.amp,,,,rtsp_no_auth,no,,N/A,,,,censys,0.0,axis-demo,
+127.0.0.1,18573,auth,Vivotek,,Brazil,BR,São Paulo,-23.55,-46.63,,/live2.sdp,,,,unknown,no,,N/A,,,,censys,0.0,,
+127.0.0.1,18574,web,Hikvision,,USA,US,New York,40.71,-74.0,,,,,,http_snapshot,no,,N/A,,http://127.0.0.1:18574/,,censys,0.0,web-only,

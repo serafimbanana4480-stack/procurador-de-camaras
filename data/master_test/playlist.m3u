@@ -1,0 +1,11 @@
+#EXTM3U
+
+# Procurador de Câmara — scan master-test
+# 2 LIVE / 2 AUTH / 1 WEB
+# 2026-06-24T04:57:50.073387
+
+#EXTINF:-1,[Hikvision] Portugal Lisboa
+rtsp://127.0.0.1:18570/Streaming/Channels/101
+
+#EXTINF:-1,[Axis] France Paris
+rtsp://127.0.0.1:18572/axis-media/media.amp

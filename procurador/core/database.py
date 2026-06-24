@@ -249,7 +249,7 @@ class Database:
                 f"UPDATE cameras SET {set_clause} WHERE ip = ? AND port = ?",
                 values,
             )
-            return existing["id"]
+            return int(existing["id"])
         else:
             # Inserir nova
             data["first_seen"] = now
@@ -261,7 +261,7 @@ class Database:
                 list(data.values()),
             )
             conn.commit()
-            return cursor.lastrowid
+            return int(cursor.lastrowid or 0)
 
     def get_camera(self, ip: str, port: int = 554) -> dict | None:
         """Obter câmara por IP+porta."""
@@ -321,7 +321,7 @@ class Database:
             ),
         )
         conn.commit()
-        return cursor.lastrowid
+        return int(cursor.lastrowid or 0)
 
     def finish_scan(self, scan_id: str, result: ScanResult) -> None:
         """Atualizar scan com resultados."""
@@ -362,7 +362,7 @@ class Database:
             (camera_ip, scan_id, alert_type, message),
         )
         conn.commit()
-        return cursor.lastrowid
+        return int(cursor.lastrowid or 0)
 
     def get_unsent_alerts(self, limit: int = 50) -> list[dict]:
         """Obter alertas não enviados."""
