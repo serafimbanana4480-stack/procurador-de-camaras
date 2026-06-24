@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>🦾 Procurador de Câmara</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Segoe UI', monospace; }
+  .card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 1rem; }
+  .status-live { color: #22c55e; }
+  .status-auth { color: #eab308; }
+  .status-closed { color: #6b7280; }
+  .status-error { color: #ef4444; }
+  .status-web { color: #d946ef; }
+  table { border-collapse: collapse; width: 100%; }
+  th { background: #1f2937; color: #06b6d4; padding: 8px; text-align: left; position: sticky; top: 0; }
+  td { padding: 6px 8px; border-bottom: 1px solid #333; }
+  tr:hover { background: #1f2937; }
+  code { background: #1f2937; padding: 2px 6px; border-radius: 4px; color: #06b6d4; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+  .badge-live { background: #16a34a; color: white; }
+  .badge-auth { background: #ca8a04; color: white; }
+  .badge-web { background: #a21caf; color: white; }
+  .badge-closed { background: #4b5563; color: white; }
+  .badge-error { background: #dc2626; color: white; }
+</style>
+</head>
+<body class="p-4">
+
+<header class="mb-4">
+  <h1 class="text-3xl font-bold text-cyan-400">🦾 Procurador de Câmara</h1>
+  <p class="text-gray-400">
+    Scan: <code>{{ result.scan_id if result else 'sem dados' }}</code>
+    {% if result and result.started_at %}
+      · Iniciado: {{ result.started_at }}
+    {% endif %}
+  </p>
+  <div class="mt-2 space-x-2">
+    <a href="/api/cameras" class="text-cyan-400 hover:underline text-sm">API /cameras</a>
+    <a href="/api/stats" class="text-cyan-400 hover:underline text-sm">API /stats</a>
+    <a href="/map" class="text-cyan-400 hover:underline text-sm" target="_blank">🗺️ Mapa</a>
+    <a href="/export/json" class="text-cyan-400 hover:underline text-sm">📥 JSON</a>
+    <a href="/export/csv" class="text-cyan-400 hover:underline text-sm">📥 CSV</a>
+    <a href="/export/html" class="text-cyan-400 hover:underline text-sm">📥 HTML</a>
+    <a href="/export/m3u" class="text-cyan-400 hover:underline text-sm">📥 M3U</a>
+  </div>
+</header>
+
+{% if not result %}
+<div class="card text-center text-gray-400 p-8">
+  <p class="text-xl">Sem resultados para mostrar.</p>
+  <p class="mt-2 text-sm">Corra <code>python -m procurador --country PT</code> primeiro.</p>
+</div>
+{% else %}
+
+<!-- Stats cards -->
+<section class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+  <div class="card text-center">
+    <div class="text-3xl font-bold text-cyan-400">{{ result.total_ips }}</div>
+    <div class="text-gray-400 text-sm">Total IPs</div>
+  </div>
+  <div class="card text-center">
+    <div class="text-3xl font-bold text-green-500">{{ result.accessible }}</div>
+    <div class="text-gray-400 text-sm">🟢 LIVE</div>
+  </div>
+  <div class="card text-center">
+    <div class="text-3xl font-bold text-yellow-500">{{ result.auth_required }}</div>
+    <div class="text-gray-400 text-sm">🟡 AUTH</div>
+  </div>
+  <div class="card text-center">
+    <div class="text-3xl font-bold text-fuchsia-500">{{ result.web_only }}</div>
+    <div class="text-gray-400 text-sm">🌐 WEB</div>
+  </div>
+  <div class="card text-center">
+    <div class="text-3xl font-bold text-red-500">{{ result.auth_failed }}</div>
+    <div class="text-gray-400 text-sm">🔴 FAIL</div>
+  </div>
+  <div class="card text-center">
+    <div class="text-3xl font-bold text-gray-500">{{ result.closed }}</div>
+    <div class="text-gray-400 text-sm">⚫ CLOSED</div>
+  </div>
+  <div class="card text-center">
+    <div class="text-3xl font-bold text-red-500">{{ result.errors }}</div>
+    <div class="text-gray-400 text-sm">⚠️ ERROS</div>
+  </div>
+  <div class="card text-center">
+    <div class="text-3xl font-bold text-magenta-400">{{ result.live_streams }}</div>
+    <div class="text-gray-400 text-sm">📺 Streams</div>
+  </div>
+</section>
+
+<!-- Charts -->
+<section class="grid md:grid-cols-2 gap-3 mb-4">
+  <div class="card">
+    <h2 class="text-lg font-bold mb-2 text-cyan-400">🏭 Fabricantes</h2>
+    <canvas id="vendorsChart" height="200"></canvas>
+  </div>
+  <div class="card">
+    <h2 class="text-lg font-bold mb-2 text-cyan-400">🌍 Países</h2>
+    <canvas id="countriesChart" height="200"></canvas>
+  </div>
+</section>
+
+<!-- Filters -->
+<section class="card mb-4">
+  <div class="flex flex-wrap gap-2 items-center">
+    <label class="text-gray-400 text-sm">Filtros:</label>
+    <input id="filter-ip" type="text" placeholder="IP..." class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-white">
+    <input id="filter-vendor" type="text" placeholder="Vendor..." class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-white">
+    <input id="filter-country" type="text" placeholder="País..." class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-white">
+    <select id="filter-status" class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-white">
+      <option value="">Todos os status</option>
+      <option value="live">🟢 LIVE</option>
+      <option value="auth">🟡 AUTH</option>
+      <option value="web">🌐 WEB</option>
+      <option value="closed">⚫ CLOSED</option>
+      <option value="error">⚠️ ERROR</option>
+    </select>
+  </div>
+</section>
+
+<!-- Cameras table -->
+<section class="card">
+  <h2 class="text-lg font-bold mb-2 text-cyan-400">📷 Câmaras</h2>
+  <div class="overflow-x-auto" style="max-height: 70vh;">
+  <table id="cameras-table">
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>IP:Porta</th>
+        <th>Vendor</th>
+        <th>País</th>
+        <th>Cidade</th>
+        <th>Resolução</th>
+        <th>Auth</th>
+        <th>Método</th>
+        <th>ONVIF</th>
+        <th>CVE</th>
+        <th>Screenshot</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for cam in result.cameras %}
+      <tr data-ip="{{ cam.ip }}" data-vendor="{{ cam.vendor or '' }}" data-country="{{ cam.geo.country or '' }}" data-status="{{ cam.status.value }}">
+        <td>
+          {% if cam.status.value == 'live' %}<span class="badge badge-live">LIVE</span>
+          {% elif cam.status.value == 'auth' %}<span class="badge badge-auth">AUTH</span>
+          {% elif cam.status.value == 'web' %}<span class="badge badge-web">WEB</span>
+          {% elif cam.status.value == 'closed' %}<span class="badge badge-closed">CLOSED</span>
+          {% elif cam.status.value == 'error' %}<span class="badge badge-error">ERROR</span>
+          {% else %}<span class="badge badge-closed">{{ cam.status.value }}</span>{% endif %}
+        </td>
+        <td><a href="/camera/{{ cam.ip }}" class="text-cyan-400 hover:underline"><code>{{ cam.ip }}:{{ cam.port }}</code></a></td>
+        <td>{{ cam.vendor or '—' }}</td>
+        <td>{{ cam.geo.country or '—' }} {{ cam.country_flag }}</td>
+        <td>{{ cam.geo.city or '—' }}</td>
+        <td>{{ cam.resolution }}</td>
+        <td>
+          {% if cam.auth_user %}
+            <code>{{ cam.auth_user }}:{{ cam.auth_pass or '' }}</code>
+          {% elif cam.access_method.value == 'rtsp_no_auth' %}
+            <span class="text-green-500">no-auth</span>
+          {% else %}—{% endif %}
+        </td>
+        <td><code class="text-xs">{{ cam.access_method.value if cam.access_method else '—' }}</code></td>
+        <td>{% if cam.onvif_supported %}✓{% endif %}</td>
+        <td>{% if cam.cve_exploited %}<code class="text-xs">{{ cam.cve_exploited }}</code>{% endif %}</td>
+        <td>
+          {% if cam.screenshot_path %}
+            <img src="/screenshot/{{ cam.ip }}" alt="screenshot" style="max-width: 80px; max-height: 60px; border-radius: 4px;">
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<script>
+// Charts
+const vendors = {{ result.vendors|tojson }};
+const countries = {{ result.countries|tojson }};
+
+if (Object.keys(vendors).length > 0) {
+  new Chart(document.getElementById('vendorsChart'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(vendors),
+      datasets: [{
+        data: Object.values(vendors),
+        backgroundColor: ['#06b6d4','#22c55e','#eab308','#d946ef','#ef4444','#3b82f6','#a3e635','#fb923c','#a78bfa','#f472b6'],
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { color: '#e5e5e5', font: { family: 'monospace' } } } },
+    }
+  });
+}
+
+if (Object.keys(countries).length > 0) {
+  new Chart(document.getElementById('countriesChart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(countries).slice(0, 15),
+      datasets: [{
+        label: 'Câmaras',
+        data: Object.values(countries).slice(0, 15),
+        backgroundColor: '#06b6d4',
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#e5e5e5' }, grid: { color: '#333' } },
+        y: { ticks: { color: '#e5e5e5' }, grid: { color: '#333' } },
+      }
+    }
+  });
+}
+
+// Filters
+function applyFilters() {
+  const ip = document.getElementById('filter-ip').value.toLowerCase();
+  const vendor = document.getElementById('filter-vendor').value.toLowerCase();
+  const country = document.getElementById('filter-country').value.toLowerCase();
+  const status = document.getElementById('filter-status').value;
+  const rows = document.querySelectorAll('#cameras-table tbody tr');
+  rows.forEach(row => {
+    const matchIp = !ip || (row.dataset.ip || '').toLowerCase().includes(ip);
+    const matchVendor = !vendor || (row.dataset.vendor || '').toLowerCase().includes(vendor);
+    const matchCountry = !country || (row.dataset.country || '').toLowerCase().includes(country);
+    const matchStatus = !status || row.dataset.status === status;
+    row.style.display = (matchIp && matchVendor && matchCountry && matchStatus) ? '' : 'none';
+  });
+}
+
+['filter-ip', 'filter-vendor', 'filter-country', 'filter-status'].forEach(id => {
+  document.getElementById(id).addEventListener('input', applyFilters);
+});
+</script>
+
+{% endif %}
+
+</body>
+</html>

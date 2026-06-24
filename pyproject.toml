@@ -1,0 +1,52 @@
+[project]
+name = "procurador"
+version = "1.0.0"
+description = "Procurador de Câmara — descoberta e auditoria de câmaras IP"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Soberana" }]
+
+# Ruff config
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# Whitelist de regras permitidas
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501", # line too long
+    "B008", # function call in default argument
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+"procurador/__main__.py" = ["E402", "B007"]
+"procurador/core/scanner.py" = ["E402", "B007"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# Mypy config
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+disallow_untyped_defs = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+# Pytest config
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

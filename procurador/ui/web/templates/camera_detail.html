@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ cam.ip }} — Procurador</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Segoe UI', monospace; }
+  .card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+  code { background: #1f2937; padding: 2px 6px; border-radius: 4px; color: #06b6d4; word-break: break-all; }
+  h2 { color: #06b6d4; }
+  .field { display: grid; grid-template-columns: 180px 1fr; gap: 8px; padding: 4px 0; border-bottom: 1px solid #222; }
+  .field-label { color: #888; }
+  .field-value { color: #e5e5e5; }
+  .screenshot { max-width: 100%; max-height: 480px; border: 1px solid #333; border-radius: 4px; }
+</style>
+</head>
+<body class="p-6">
+
+<a href="/" class="text-cyan-400 hover:underline">← Voltar</a>
+
+<h1 class="text-3xl font-bold text-cyan-400 mt-2 mb-4">📷 {{ cam.ip }}:{{ cam.port }}</h1>
+
+<div class="card">
+  <h2 class="text-xl font-bold mb-2">Status</h2>
+  <div class="field"><span class="field-label">Status:</span> <span class="field-value"><code>{{ cam.status }}</code></span></div>
+  <div class="field"><span class="field-label">Acesso:</span> <span class="field-value"><code>{{ cam.access_method }}</code></span></div>
+  {% if cam.cve_exploited %}
+  <div class="field"><span class="field-label">CVE explorado:</span> <span class="field-value text-yellow-400"><code>{{ cam.cve_exploited }}</code></span></div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2 class="text-xl font-bold mb-2">Identificação</h2>
+  <div class="field"><span class="field-label">Vendor:</span> <span class="field-value">{{ cam.vendor or '—' }}</span></div>
+  <div class="field"><span class="field-label">Modelo:</span> <span class="field-value">{{ cam.model or '—' }}</span></div>
+  <div class="field"><span class="field-label">Firmware:</span> <span class="field-value">{{ cam.firmware or '—' }}</span></div>
+  <div class="field"><span class="field-label">MAC:</span> <span class="field-value"><code>{{ cam.mac_address or '—' }}</code></span></div>
+  <div class="field"><span class="field-label">Portas abertas:</span> <span class="field-value">{% for p in cam.ports_open %}<code>{{ p }}</code> {% endfor %}</span></div>
+</div>
+
+<div class="card">
+  <h2 class="text-xl font-bold mb-2">Localização</h2>
+  <div class="field"><span class="field-label">País:</span> <span class="field-value">{{ cam.geo.country or '—' }} ({{ cam.geo.country_code or '?' }})</span></div>
+  <div class="field"><span class="field-label">Cidade:</span> <span class="field-value">{{ cam.geo.city or '—' }}</span></div>
+  <div class="field"><span class="field-label">Região:</span> <span class="field-value">{{ cam.geo.region or '—' }}</span></div>
+  <div class="field"><span class="field-label">Coordenadas:</span> <span class="field-value">{{ cam.geo.lat }}, {{ cam.geo.lon }}</span></div>
+  <div class="field"><span class="field-label">ISP:</span> <span class="field-value">{{ cam.network.isp or '—' }}</span></div>
+  <div class="field"><span class="field-label">Org:</span> <span class="field-value">{{ cam.network.org or '—' }}</span></div>
+</div>
+
+<div class="card">
+  <h2 class="text-xl font-bold mb-2">RTSP / Stream</h2>
+  <div class="field"><span class="field-label">RTSP URL:</span> <span class="field-value"><code>{{ cam.rtsp_url or '—' }}</code></span></div>
+  <div class="field"><span class="field-label">RTSP Path:</span> <span class="field-value"><code>{{ cam.rtsp_path or '—' }}</code></span></div>
+  <div class="field"><span class="field-label">Resolução:</span> <span class="field-value"><code>{{ cam.resolution }}</code></span></div>
+  {% if cam.stream and cam.stream.codec %}
+  <div class="field"><span class="field-label">Codec:</span> <span class="field-value"><code>{{ cam.stream.codec }}</code></span></div>
+  <div class="field"><span class="field-label">FPS:</span> <span class="field-value"><code>{{ cam.stream.fps }}</code></span></div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2 class="text-xl font-bold mb-2">Autenticação</h2>
+  <div class="field"><span class="field-label">Auth required:</span> <span class="field-value">{{ 'Sim' if cam.auth_required else 'Não' }}</span></div>
+  <div class="field"><span class="field-label">Auth success:</span> <span class="field-value">{{ 'Sim' if cam.auth_success else 'Não' }}</span></div>
+  {% if cam.auth_user %}
+  <div class="field"><span class="field-label">User:</span> <span class="field-value"><code>{{ cam.auth_user }}</code></span></div>
+  <div class="field"><span class="field-label">Password:</span> <span class="field-value"><code>{{ cam.auth_pass or '' }}</code></span></div>
+  <div class="field"><span class="field-label">Método:</span> <span class="field-value"><code>{{ cam.auth_method or '—' }}</code></span></div>
+  {% endif %}
+</div>
+
+{% if cam.onvif_supported %}
+<div class="card">
+  <h2 class="text-xl font-bold mb-2">ONVIF</h2>
+  <div class="field"><span class="field-label">Suportado:</span> <span class="field-value text-green-400">✓ Sim</span></div>
+  <div class="field"><span class="field-label">URL:</span> <span class="field-value"><code>{{ cam.onvif_url or '—' }}</code></span></div>
+  <div class="field"><span class="field-label">Profiles:</span> <span class="field-value">{% for p in cam.onvif_profiles %}<code>{{ p }}</code> {% endfor %}</span></div>
+  <div class="field"><span class="field-label">PTZ:</span> <span class="field-value">{{ 'Sim' if cam.ptz_supported else 'Não' }}</span></div>
+</div>
+{% endif %}
+
+{% if cam.http_url %}
+<div class="card">
+  <h2 class="text-xl font-bold mb-2">HTTP / Web Admin</h2>
+  <div class="field"><span class="field-label">URL:</span> <span class="field-value"><a href="{{ cam.http_url }}" class="text-cyan-400" target="_blank">{{ cam.http_url }}</a></span></div>
+  <div class="field"><span class="field-label">Title:</span> <span class="field-value">{{ cam.http_title or '—' }}</span></div>
+  <div class="field"><span class="field-label">Server:</span> <span class="field-value">{{ cam.http_server or '—' }}</span></div>
+  {% if cam.http_login_url %}
+  <div class="field"><span class="field-label">Login URL:</span> <span class="field-value"><code>{{ cam.http_login_url }}</code></span></div>
+  {% endif %}
+  {% if cam.http_snapshot_url %}
+  <div class="field"><span class="field-label">Snapshot URL:</span> <span class="field-value"><code>{{ cam.http_snapshot_url }}</code></span></div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if cam.screenshot_path %}
+<div class="card">
+  <h2 class="text-xl font-bold mb-2">📸 Screenshot</h2>
+  <img class="screenshot" src="/screenshot/{{ cam.ip }}" alt="screenshot">
+</div>
+{% endif %}
+
+{% if cam.tags %}
+<div class="card">
+  <h2 class="text-xl font-bold mb-2">Tags</h2>
+  {% for tag in cam.tags %}
+    <code class="mr-2">{{ tag }}</code>
+  {% endfor %}
+</div>
+{% endif %}
+
+</body>
+</html>

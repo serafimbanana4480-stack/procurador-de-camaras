@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+
+# Virtualenvs
+venv/
+.venv/
+env/
+ENV/
+
+# Env
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Dados locais
+data/screenshots/*.jpg
+data/screenshots/*.png
+data/screenshots/*.jpeg
+data/reports/*.html
+data/reports/*.json
+data/reports/*.csv
+data/reports/*.m3u
+data/scan_*.json
+!data/reports/.gitkeep
+!data/screenshots/.gitkeep
+
+# OS
+Thumbs.db
+.DS_Store
