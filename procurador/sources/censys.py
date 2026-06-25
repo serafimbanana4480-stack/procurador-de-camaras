@@ -3,6 +3,11 @@ Integração com Censys API v2 (Platform API).
 
 Procura dispositivos com serviços RTSP/HTTP/ONVIF e devolve objetos Camera.
 Suporta fallback gracioso se a API não responder.
+
+Fluxo de autenticação:
+- Personal Access Token (PAT) → tenta censys_platform SDK primeiro
+- Se SDK falhar (conta FREE), fallback para HTTP v3 directo
+- API ID + Secret → SDK legado censys v2 (CensysHosts)
 """
 
 from __future__ import annotations
@@ -189,18 +194,13 @@ def query_builder(
 
 
 # =====================================================================
-# Censys search
+# Censys search (entry point)
 # =====================================================================
 
 
 @retry(exceptions=(Exception,), tries=2, delay=1.0)
 def _build_client(api_id: str, api_secret: str | None):
-    """Constrói o cliente CensysHosts (lazy import).
-
-    Suporta:
-    - Personal Access Token: CensysHosts(api_id="<token>", api_secret=None)
-    - API ID + Secret: CensysHosts(api_id="<id>", api_secret="<secret>")
-    """
+    """Constrói o cliente CensysHosts (lazy import)."""
     from censys.search import CensysHosts
 
     return CensysHosts(api_id=api_id, api_secret=api_secret)
@@ -213,10 +213,14 @@ def search_censys(
 ) -> Generator[Camera, None, None]:
     """Procura câmaras no Censys e devolve Camera objects.
 
+    Fluxo:
+    1. Personal Access Token (secret=None) → SDK censys_platform → fallback HTTP v3
+    2. API ID + Secret       → SDK legado CensysHosts → fallback HTTP v2
+
     Args:
         config: ScanConfig (usa censys_query, censys_country, censys_max_pages).
-        api_id: API ID (opcional; usa env).
-        api_secret: API secret (opcional; pode ser vazio).
+        api_id: API ID / PAT (opcional; usa env).
+        api_secret: API secret (opcional; None=PAT, ""=vazio).
 
     Yields:
         Camera objects com info básica do Censys (sem probe ainda).
@@ -228,11 +232,33 @@ def search_censys(
         if not api_id:
             logger.error(
                 "Censys API key não configurada. "
-                "Set CENSYS_API_KEY, CENSYS_API_ID ou CENSYS_SECRET no .env"
+                "Set CENSYS_PERSONAL_ACCESS_TOKEN, CENSYS_API_KEY, "
+                "CENSYS_API_ID ou CENSYS_SECRET no .env"
             )
             return
 
-    # Tenta com o cliente oficial
+    # ── Personal Access Token ─────────────────────────────────────
+    if api_secret is None:
+        logger.info("   PAT detetado, a tentar censys_platform SDK...")
+        sdk_count = 0
+        for cam in _search_platform_sdk(api_id, config):
+            yield cam
+            sdk_count += 1
+
+        if sdk_count > 0:
+            logger.info(f"   Platform SDK: {sdk_count} câmaras")
+            return
+
+        # Fallback: direct HTTP v3 (conta FREE sem acesso a search)
+        logger.info(
+            "   SDK search indisponível (conta FREE?). "
+            "A usar fallback HTTP v3..."
+        )
+        query = query_builder(config.censys_country, config.censys_query)
+        yield from _search_censys_v3(api_id, query, config)
+        return
+
+    # ── API ID + Secret (legado) ──────────────────────────────────
     try:
         client = _build_client(api_id, api_secret)
     except Exception as e:
@@ -240,14 +266,6 @@ def search_censys(
         client = None
 
     if client is None:
-        # Fallback: API direta HTTP
-        yield from _search_censys_direct(api_id, api_secret, config)
-        return
-
-    # Se temos PAT (api_secret = None ou ""), o SDK antigo não serve.
-    # Usar sempre API direta.
-    if api_secret is None or api_secret == "":
-        logger.info("   PAT detetado, a usar API direta v3...")
         yield from _search_censys_direct(api_id, api_secret, config)
         return
 
@@ -255,10 +273,8 @@ def search_censys(
     logger.info(f"🔍 Censys query: {query}")
     logger.info(f"   max_pages={config.censys_max_pages} per_page={config.censys_per_page}")
 
-    # Detectar API disponível
     use_v2 = hasattr(client, "v2") and hasattr(client.v2, "hosts")
 
-    # Censys v2 — paginação com next_page_token
     count = 0
     cursor: str | None = None
     pages = 0
@@ -273,7 +289,6 @@ def search_censys(
                         search_kwargs["cursor"] = cursor
                     result = client.v2.hosts.search(**search_kwargs)
                 else:
-                    # API antiga (CensysHosts.search)
                     result = client.search(
                         query,
                         per_page=per_page,
@@ -299,7 +314,6 @@ def search_censys(
 
             pages += 1
 
-            # Próxima página
             try:
                 cursor = getattr(result, "next_page_token", None)
             except Exception:
@@ -307,7 +321,6 @@ def search_censys(
             if not cursor:
                 break
 
-            # Log progresso
             logger.debug(f"   página {pages}: {len(hosts)} hosts, total={count}")
 
     except Exception as e:
@@ -317,8 +330,284 @@ def search_censys(
     logger.info(f"✅ Censys: {count} câmaras encontradas ({pages} página(s))")
 
 
+# =====================================================================
+# Platform SDK search (+ get_hosts)
+# =====================================================================
+
+
+def _search_platform_sdk(
+    api_key: str,
+    config: ScanConfig,
+) -> Generator[Camera, None, None]:
+    """Pesquisa Censys via censys_platform SDK (Platform API v3).
+
+    Usa ``sdk.global_data.search()``.
+    Se retornar 403 (conta FREE), log warning e sai sem resultados
+    para permitir fallback a HTTP directo.
+
+    Args:
+        api_key: Personal Access Token.
+        config: ScanConfig com query, país, páginas, etc.
+
+    Yields:
+        Camera objects convertidos dos SDK hits.
+    """
+    try:
+        from censys_platform import SDK
+        from censys_platform.models.searchqueryinputbody import SearchQueryInputBody
+    except ImportError:
+        logger.warning("   censys_platform SDK não instalado. A usar fallback HTTP...")
+        return
+
+    query = query_builder(config.censys_country, config.censys_query)
+    logger.info(f"   Platform SDK search: {query}")
+
+    try:
+        sdk = SDK(personal_access_token=api_key)
+    except Exception as e:
+        logger.warning(f"   SDK init falhou: {e}")
+        return
+
+    page = 1
+    page_token: str | None = None
+    count = 0
+    total_hits = 0
+
+    while page <= config.censys_max_pages:
+        page_size = min(max(1, config.censys_per_page), 100)
+
+        try:
+            body = SearchQueryInputBody(
+                query=query,
+                page_size=page_size,
+                page_token=page_token,
+            )
+            response = sdk.global_data.search(search_query_input_body=body)
+        except Exception as e:
+            error_lower = str(e).lower()
+            if "403" in error_lower or "forbidden" in error_lower or "not authorized" in error_lower:
+                logger.warning("   SDK search: 403 (conta FREE?). Fallback para HTTP v3...")
+                return  # Sem yield → caller sabe que falhou
+            logger.error(f"   SDK search error: {e}")
+            return
+
+        if not response or not response.result:
+            break
+
+        result = response.result
+        hits = result.hits or []
+        if total_hits == 0:
+            total_hits = int(result.total_hits) if result.total_hits else 0
+            logger.info(f"   SDK search: {total_hits} total hits")
+
+        for hit in hits:
+            camera = _convert_sdk_search_hit_to_camera(hit)
+            if camera:
+                count += 1
+                yield camera
+
+        page_token = result.next_page_token if result.next_page_token else None
+        if not page_token or not hits:
+            break
+        page += 1
+
+    if count > 0:
+        logger.info(f"   Platform SDK search: {count} câmaras ({page} página(s))")
+
+
+def _get_hosts_platform_sdk(
+    api_key: str,
+    ips: list[str],
+) -> Generator[Camera, None, None]:
+    """Lookup de IPs específicos via censys_platform SDK (global_data.get_hosts()).
+
+    Args:
+        api_key: Personal Access Token.
+        ips: Lista de IPs para consultar.
+
+    Yields:
+        Camera objects convertidos.
+    """
+    try:
+        from censys_platform import SDK
+        from censys_platform.models.assethostlistinputbody import AssetHostListInputBody
+    except ImportError:
+        logger.warning("   censys_platform SDK não instalado. Ignorando get_hosts...")
+        return
+
+    if not ips:
+        return
+
+    logger.info(f"   SDK get_hosts: {len(ips)} IP(s)")
+
+    try:
+        sdk = SDK(personal_access_token=api_key)
+    except Exception as e:
+        logger.warning(f"   SDK init falhou: {e}")
+        return
+
+    # Process in batches (API may limit)
+    batch_size = 50
+    count = 0
+    for i in range(0, len(ips), batch_size):
+        batch = ips[i : i + batch_size]
+        try:
+            body = AssetHostListInputBody(host_ids=batch)
+            response = sdk.global_data.get_hosts(asset_host_list_input_body=body)
+        except Exception as e:
+            logger.warning(f"   SDK get_hosts error (batch {i}): {e}")
+            continue
+
+        if response and response.result and response.result.result:
+            for asset in response.result.result:
+                if asset and asset.resource:
+                    camera = _convert_sdk_host_to_camera(asset.resource)
+                    if camera:
+                        count += 1
+                        yield camera
+
+    if count > 0:
+        logger.info(f"   SDK get_hosts: {count} câmaras")
+
+
+# =====================================================================
+# SDK → Camera conversion
+# =====================================================================
+
+
+def _convert_sdk_search_hit_to_camera(hit) -> Camera | None:
+    """Converte um SearchQueryHit do SDK censys_platform em Camera.
+
+    A hit contém ``host_v1`` (HostAssetWithMatchedServices) com
+    ``resource`` (Host) e ``matched_services``.
+    """
+    if not hit or not hit.host_v1 or not hit.host_v1.resource:
+        return None
+    return _convert_sdk_host_to_camera(
+        hit.host_v1.resource,
+        hit.host_v1.matched_services,
+    )
+
+
+def _convert_sdk_host_to_camera(host, matched_services=None) -> Camera | None:
+    """Converte um modelo ``Host`` do SDK censys_platform em Camera.
+
+    Args:
+        host: Instância de censys_platform.models.host.Host.
+        matched_services: Opcional, lista de MatchedService.
+
+    Returns:
+        Camera ou None se inválido.
+    """
+    if not host or not host.ip:
+        return None
+
+    ip = host.ip
+
+    # ── Location ────────────────────────────────────────────────
+    loc = host.location
+    geo = GeoLocation(
+        country=loc.country if loc else None,
+        country_code=loc.country_code if loc else None,
+        city=loc.city if loc else None,
+        region=loc.province if loc else None,
+        lat=loc.coordinates.latitude if loc and loc.coordinates else None,
+        lon=loc.coordinates.longitude if loc and loc.coordinates else None,
+        postal=loc.postal_code if loc else None,
+        timezone=loc.timezone if loc else None,
+    )
+
+    # ── Network / ASN ────────────────────────────────────────────
+    asys = host.autonomous_system
+    network = NetworkInfo(
+        isp=None,
+        org=asys.organization if asys else None,
+        asn=str(asys.asn) if asys and asys.asn else None,
+        as_name=asys.name if asys else None,
+    )
+
+    # ── Services ─────────────────────────────────────────────────
+    services = list(host.services or [])
+    ports_open: list[int] = []
+    rtsp_svc = None
+    http_svc = None
+    onvif_svc = None
+
+    for svc in services:
+        port = svc.port or 0
+        if port:
+            ports_open.append(port)
+
+        # RTSP — porta 554 ou objecto rtsp presente
+        if port == 554 or svc.rtsp is not None:
+            if not rtsp_svc:
+                rtsp_svc = svc
+        # HTTP — portas comuns ou objecto http presente
+        elif (
+            port in (80, 443, 8000, 8008, 8080, 8081, 8443)
+            or svc.http is not None
+        ):
+            if not http_svc:
+                http_svc = svc
+
+        # ONVIF
+        if svc.onvif is not None or port in (2020, 3702):
+            if not onvif_svc:
+                onvif_svc = svc
+
+    if not rtsp_svc and not http_svc:
+        return None
+
+    # Porta primária
+    primary_port = 554
+    if rtsp_svc and rtsp_svc.port:
+        primary_port = rtsp_svc.port
+    elif http_svc and http_svc.port:
+        primary_port = http_svc.port
+
+    # Banner / vendor
+    raw_banner = ""
+    if rtsp_svc:
+        raw_banner = rtsp_svc.banner or ""
+        if not raw_banner and rtsp_svc.rtsp:
+            raw_banner = rtsp_svc.rtsp.server or ""
+    if not raw_banner and http_svc:
+        raw_banner = http_svc.banner or ""
+
+    # HTTP title / status
+    http_title: str | None = None
+    http_status: int | None = None
+    if http_svc and http_svc.http:
+        http_title = http_svc.http.html_title
+        http_status = http_svc.http.status_code
+
+    vendor = identify_vendor(raw_banner, http_title)
+
+    return Camera(
+        ip=ip,
+        port=primary_port,
+        source=SourceType.CENSYS,
+        first_seen=0.0,
+        last_seen=0.0,
+        vendor=vendor,
+        geo=geo,
+        network=network,
+        ports_open=sorted(set(ports_open)),
+        http_status=http_status,
+        http_title=http_title,
+        status=CameraStatus.PENDING,
+        raw_banner=raw_banner or None,
+        onvif_supported=onvif_svc is not None,
+    )
+
+
+# =====================================================================
+# Legacy CensysHost parser
+# =====================================================================
+
+
 def _parse_censys_host(host) -> Camera | None:
-    """Converte um host Censys num Camera.
+    """Converte um host Censys (dict ou objecto v1/v2) num Camera.
 
     Aceita dict (v2) ou objeto (v1). Suporta tanto .ip como ['ip'].
     """
@@ -449,12 +738,17 @@ def _parse_censys_host(host) -> Camera | None:
     return camera
 
 
+# =====================================================================
+# Direct HTTP fallbacks
+# =====================================================================
+
+
 def _search_censys_direct(
     api_id: str,
     api_secret: str | None,
     config: ScanConfig,
 ) -> Generator[Camera, None, None]:
-    """Fallback: pesquisa Censys via API HTTP direta.
+    """Fallback: pesquisa Censys via API HTTP directa.
 
     Estrategia (por ordem):
     1. Platform API v3 (search.censys.io/api/v3) - Bearer token
@@ -711,4 +1005,3 @@ def _search_censys_v2(
 
     if count > 0:
         logger.info(f"   Censys v2: {count} hosts ({page} pagina(s))")
-

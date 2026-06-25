@@ -159,19 +159,26 @@ def load_config(
 def get_censys_credentials() -> tuple[str | None, str | None]:
     """Devolve (api_id, api_secret) a partir do ambiente.
 
-    Suporta 3 formatos:
+    Suporta 4 formatos (por ordem de precedência):
     1. Personal Access Token (recomendado):
+       CENSYS_PERSONAL_ACCESS_TOKEN="<token>" → (token, None)
+    2. Personal Access Token (alternativo):
        CENSYS_API_KEY="<token>" → (token, None)
-    2. API ID / Secret (v1/v2 clássico):
+    3. API ID / Secret (v1/v2 clássico):
        CENSYS_API_ID="xxx" + CENSYS_SECRET="yyy" → ("xxx", "yyy")
-    3. Combinado antigo (id:secret):
+    4. Combinado antigo (id:secret):
        CENSYS_API_KEY="id:secret" → ("id", "secret")
 
     PAT (None secret) vs clássico ("" secret) são distintos:
-    - secret=None → Personal Access Token (SDK v2.2+)
-    - secret=""   → API ID com secret vazio (clássico)
+    - secret=None → Personal Access Token (SDK v0.14+)
+    - secret=""   → API ID com secret vazio (clássico obsoleto)
     """
-    # 1. Personal Access Token (prioritário)
+    # 1. CENSYS_PERSONAL_ACCESS_TOKEN (prioritário)
+    pat = os.environ.get("CENSYS_PERSONAL_ACCESS_TOKEN")
+    if pat:
+        return pat, None
+
+    # 2. CENSYS_API_KEY (PAT ou combinado antigo)
     api_key = os.environ.get("CENSYS_API_KEY")
     if api_key:
         if ":" in api_key:
@@ -181,7 +188,7 @@ def get_censys_credentials() -> tuple[str | None, str | None]:
         # PAT: token inteiro como api_id, api_secret=None
         return api_key, None
 
-    # 2. API ID + Secret clássico
+    # 3. API ID + Secret clássico
     api_id = os.environ.get("CENSYS_API_ID")
     api_secret = os.environ.get("CENSYS_SECRET") or os.environ.get("CENSYS_API_SECRET")
     if api_secret:

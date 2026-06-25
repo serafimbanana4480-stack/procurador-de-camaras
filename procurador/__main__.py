@@ -83,6 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Local
     p.add_argument("--local", action="store_true", help="Ativar scan local (ARP + ONVIF)")
+    p.add_argument("--shodan", action="store_true", help="Ativar pesquisa Shodan")
     p.add_argument(
         "--subnet",
         type=str,
@@ -167,7 +168,24 @@ def _discover_cameras(
         else:
             logger.warning("⚠️  Censys desativado (falta CENSYS_API_ID)")
 
-    # 2. Local scan
+    # 2. Shodan
+    if args.shodan:
+        try:
+            from procurador.sources.shodan import search_shodan, get_shodan_key
+
+            shodan_key = get_shodan_key()
+            if shodan_key:
+                logger.info("Shodan API encontrada")
+                for cam in search_shodan(config, shodan_key):
+                    cameras.append(cam)
+            else:
+                logger.warning("Shodan desativado (falta SHODAN_API_KEY no .env)")
+        except ImportError as e:
+            logger.warning(f"Shodan indisponivel: {e}")
+        except Exception as e:
+            logger.error(f"Erro Shodan: {e}")
+
+    # 3. Local scan
     if args.local:
         try:
             from procurador.sources.local import scan_local_network
@@ -179,7 +197,7 @@ def _discover_cameras(
         except Exception as e:
             logger.error(f"Erro scan local: {e}")
 
-    # 3. Manual targets
+    # 4. Manual targets
     if args.target:
         from procurador.utils.helpers import parse_hostport
 
