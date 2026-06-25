@@ -756,13 +756,11 @@ def _search_censys_direct(
 
     O Personal Access Token (PAT) so funciona na Platform API v3.
     """
-    import requests
 
     query = query_builder(config.censys_country, config.censys_query)
     logger.info(f"Direct Censys API: {query}")
 
     is_pat = api_secret is None or api_secret == ""
-    is_legacy = api_secret is not None and api_secret != ""
 
     if is_pat:
         # Platform API v3 - Bearer token

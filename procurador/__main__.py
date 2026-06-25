@@ -37,6 +37,7 @@ from procurador.core.brute import brute_camera
 from procurador.core.cve import try_cve_exploit
 from procurador.core.geoip import GeoIPResolver
 from procurador.core.models import (
+    AccessMethod,
     Camera,
     CameraStatus,
     ScanConfig,
@@ -171,7 +172,7 @@ def _discover_cameras(
     # 2. Shodan
     if args.shodan:
         try:
-            from procurador.sources.shodan import search_shodan, get_shodan_key
+            from procurador.sources.shodan import get_shodan_key, search_shodan
 
             shodan_key = get_shodan_key()
             if shodan_key:
@@ -234,6 +235,16 @@ def _scan_one(
         # 1. Probe básico (Técnicas 1, 3, 4, 6)
         scan_camera_basic(camera, config)
 
+        # 1b. Portas alternativas se fechado/pendente
+        if camera.status in (CameraStatus.PENDING, CameraStatus.CLOSED, CameraStatus.ERROR):
+            from procurador.core.cve import try_alt_ports
+            try:
+                if try_alt_ports(camera, timeout=config.rtsp_probe_timeout):
+                    # Re-scan com a nova porta
+                    scan_camera_basic(camera, config)
+            except Exception:
+                pass
+
         # 2. ONVIF (Técnica 2)
         if not args_no_onvif(config):
             try:
@@ -260,12 +271,33 @@ def _scan_one(
             except Exception as e:
                 logger.debug(f"brute err {camera.ip}: {e}")
 
+        # 3b. Frame validation (reduzir falsos positivos)
+        if camera.status == CameraStatus.LIVE:
+            from procurador.core.cve import validate_stream
+            try:
+                if not validate_stream(camera, timeout=3.0):
+                    logger.debug(f"   Frame validation falhou {camera.ip} - downgrade para AUTH")
+                    camera.status = CameraStatus.AUTH_REQUIRED
+            except Exception:
+                pass
+
         # 4. CVE exploits (Técnica 7)
         if not args_no_cve(config):
             try:
                 try_cve_exploit(camera)
             except Exception as e:
                 logger.debug(f"cve err {camera.ip}: {e}")
+
+        # 4b. Frame validation apos CVE
+        if camera.status == CameraStatus.LIVE and camera.access_method == AccessMethod.CVE_EXPLOIT:
+            from procurador.core.cve import validate_stream
+            try:
+                if not validate_stream(camera, timeout=3.0):
+                    logger.debug(f"   CVE stream validation falhou {camera.ip}")
+                    camera.status = CameraStatus.AUTH_REQUIRED
+                    camera.access_method = AccessMethod.UNKNOWN
+            except Exception:
+                pass
 
         # 5. GeoIP
         if geoip is not None and not config.geoip_enabled:

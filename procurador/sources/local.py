@@ -139,7 +139,7 @@ def scan_rtsp_ports(
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(_tcp_connect, ip, port, timeout): (ip, port) for ip, port in targets}
         for fut in as_completed(futures):
-            ip_str = str(futures[fut][0])
+            str(futures[fut][0])
             port = futures[fut][1]
             try:
                 if fut.result():

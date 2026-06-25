@@ -10,17 +10,15 @@ Uso:
 
 from __future__ import annotations
 
-import logging
-import os
 import signal
 import sys
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event
 
-from procurador.config import get_censys_credentials, load_config
+from procurador.config import get_censys_credentials
 from procurador.core.alerts import Alert, AlertManager
 from procurador.core.database import Database
 from procurador.core.geoip import GeoIPResolver
@@ -29,7 +27,6 @@ from procurador.core.models import (
     CameraStatus,
     ScanConfig,
     ScanResult,
-    SourceType,
 )
 from procurador.core.scanner import scan_camera_basic
 from procurador.sources.censys import search_censys
@@ -88,7 +85,7 @@ class Daemon:
         logger.info(f"🚀 Ciclo #{self._scan_count + 1} (id={scan_id})")
 
         # Inserir scan na BD
-        scan_rowid = self.db.save_scan(scan_id, started, self.config)
+        self.db.save_scan(scan_id, started, self.config)
 
         # Descobrir câmaras
         cameras = self._discover_cameras()

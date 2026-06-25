@@ -24,7 +24,6 @@ from procurador.core.models import (
     ScanConfig,
     SourceType,
 )
-from procurador.utils.helpers import retry
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +144,7 @@ def _parse_shodan_match(match: dict) -> Camera | None:
 
     # Data
     data_str = match.get("data", "") or ""
-    transport = match.get("transport", "")
+    match.get("transport", "")
     product = match.get("product", "") or ""
     org = match.get("org", "") or ""
     asn = match.get("asn", "") or ""
@@ -173,10 +172,8 @@ def _parse_shodan_match(match: dict) -> Camera | None:
         geo=geo,
         network=network,
         ports_open=ports_open,
-        hostname=hostnames[0] if hostnames else None,
         raw_banner=data_str[:500] if data_str else None,
         status=CameraStatus.PENDING,
-        os=os_info or None,
         http_title=extract_shodan_title(data_str),
     )
 
