@@ -22,13 +22,12 @@ ENV/
 *.swp
 
 # Dados locais
-data/screenshots/*.jpg
-data/screenshots/*.png
-data/screenshots/*.jpeg
-data/reports/*.html
-data/reports/*.json
-data/reports/*.csv
-data/reports/*.m3u
+data/*.db
+data/master_test/
+data/test_timing/
+data/screenshots/
+data/reports/
+data/test_cli/
 data/scan_*.json
 !data/reports/.gitkeep
 !data/screenshots/.gitkeep

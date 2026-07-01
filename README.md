@@ -75,6 +75,8 @@ procurador/
     └── helpers.py      # retry, rate_limit, extract_title, parse_hostport
 ```
 
+> **📁 Nota sobre as wordlists:** As wordlists (189 paths RTSP, 200+ credenciais default, 35+ paths de snapshot) estão **hardcoded** em `procurador/core/wordlists.py`. O diretório `wordlists/` encontra-se vazio porque toda a lógica está centralizada no código fonte — não é necessário copiar ficheiros externos.
+
 ---
 
 ## 🚀 Quickstart
